@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <math.h>
 
 #include <unistd.h>
 
@@ -24,6 +25,7 @@ typedef struct stats {
   uint32_t survivedBattles;
   uint32_t frags;
   uint32_t spots;
+  uint32_t xp;
   achievements medals;
 } stats;
 
@@ -31,7 +33,7 @@ const char* accountId = "126219745";
 const char* appId = "74198832ec124e1cfe22490f35a7085f";
 
 const char* timeUrl = "https://api.wotblitz.ru/wotb/account/info/?application_id=%s&account_id=%s&fields=last_battle_time";
-const char* dataUrl = "https://api.wotblitz.ru/wotb/account/info/?application_id=%s&account_id=%s&fields=statistics.all.battles%%2Cstatistics.all.damage_dealt%%2Cstatistics.all.wins%%2Cstatistics.all.survived_battles%%2Cstatistics.all.hits%%2Cstatistics.all.shots%%2Cstatistics.all.losses%%2Cstatistics.all.frags%%2Cstatistics.all.spotted";
+const char* dataUrl = "https://api.wotblitz.ru/wotb/account/info/?application_id=%s&account_id=%s&fields=statistics.all.battles%%2Cstatistics.all.damage_dealt%%2Cstatistics.all.wins%%2Cstatistics.all.survived_battles%%2Cstatistics.all.hits%%2Cstatistics.all.shots%%2Cstatistics.all.losses%%2Cstatistics.all.frags%%2Cstatistics.all.spotted%%2Cstatistics.all.xp";
 const char* achievementUrl = "https://api.wotblitz.ru/wotb/account/achievements/?application_id=%s&account_id=%s&fields=achievements";
 
 time_t lastBattleTime, newTime;
@@ -80,7 +82,7 @@ int main() {
   lastStats = initialStats;
 
   printf("\x1B[2J\x1B[H");
-  printf(" num | damage | hitrate | winrate | survival | frags | spots | M\n");
+  printf(" num | damage | hitrate | winrate | survival | frags | spots |  xp  | M\n");
   for (;;) {
     curl_easy_perform(timeHandle);
     if (newTime != lastBattleTime) {
@@ -90,7 +92,7 @@ int main() {
       calculateStatsDifference(&currentStats, &lastStats, &battleStats);
       calculateStatsDifference(&currentStats, &initialStats, &sessionStats);
       printf("\x1B[2K\r");
-      printf("%4i | %6i | %6.2f%% | %7s | %8s | %5d | %5d | %c\n", 
+      printf("%4i | %6i | %6.2f%% | %7s | %8s | %5d | %5d | %4d | %c\n", 
              sessionStats.battles,
              battleStats.damageDealt,
              (float)battleStats.hits / battleStats.shots * 100,
@@ -98,17 +100,19 @@ int main() {
              battleStats.survivedBattles ? "survived" : "died",
              battleStats.frags,
              battleStats.spots,
+             (int)roundf(battleStats.xp / 1.5f),
              battleStats.medals.markOfMastery ? 'M' :
              battleStats.medals.markOfMasteryI ? '1' :
              battleStats.medals.markOfMasteryII ? '2' :
              battleStats.medals.markOfMasteryIII ? '3' : '-');
-      printf(" avg |%7.1f | %6.2f%% | %6.2f%% | %7.2f%% | %5.2f | %5.2f | %c",
+      printf(" avg |%7.1f | %6.2f%% | %6.2f%% | %7.2f%% | %5.2f | %5.2f | %4d | %c",
              (float)sessionStats.damageDealt / sessionStats.battles,
              (float)sessionStats.hits / sessionStats.shots * 100,
              (float)sessionStats.wins / sessionStats.battles * 100,
              (float)sessionStats.survivedBattles / sessionStats.battles * 100,
              (float)sessionStats.frags / sessionStats.battles,
              (float)sessionStats.spots / sessionStats.battles,
+             (int)roundf(sessionStats.xp / sessionStats.battles / 1.5f),
              sessionStats.medals.markOfMastery ? 'M' :
              sessionStats.medals.markOfMasteryI ? '1' :
              sessionStats.medals.markOfMasteryII ? '2' :
@@ -139,7 +143,7 @@ size_t dataParse(void *buffer, size_t size, size_t nmemb, stats *pStats) {
   json_object_object_get_ex(data, accountId, &me);
   json_object_object_get_ex(me, "statistics", &statistics);
   json_object_object_get_ex(statistics, "all", &all);
-  json_object *damage_dealt, *shots, *hits, *battles, *survived_battles, *wins, *losses, *frags, *spotted;
+  json_object *damage_dealt, *shots, *hits, *battles, *survived_battles, *wins, *losses, *frags, *spotted, *xp;
   json_object_object_get_ex(all, "damage_dealt", &damage_dealt);
   json_object_object_get_ex(all, "shots", &shots);
   json_object_object_get_ex(all, "hits", &hits);
@@ -149,6 +153,7 @@ size_t dataParse(void *buffer, size_t size, size_t nmemb, stats *pStats) {
   json_object_object_get_ex(all, "losses", &losses);
   json_object_object_get_ex(all, "frags", &frags);
   json_object_object_get_ex(all, "spotted", &spotted);
+  json_object_object_get_ex(all, "xp", &xp);
   pStats->damageDealt = json_object_get_int(damage_dealt);
   pStats->hits = json_object_get_int(hits);
   pStats->shots = json_object_get_int(shots);
@@ -158,6 +163,7 @@ size_t dataParse(void *buffer, size_t size, size_t nmemb, stats *pStats) {
   pStats->survivedBattles = json_object_get_int(survived_battles);
   pStats->frags = json_object_get_int(frags);
   pStats->spots = json_object_get_int(spotted);
+  pStats->xp = json_object_get_int(xp);
   return size * nmemb;
 }
 
@@ -189,6 +195,7 @@ void calculateStatsDifference(stats *currentStats, stats *lastStats, stats *batt
   battleStats->survivedBattles = currentStats->survivedBattles - lastStats->survivedBattles;
   battleStats->frags = currentStats->frags - lastStats->frags;
   battleStats->spots = currentStats->spots - lastStats->spots;
+  battleStats->xp = currentStats->xp - lastStats->xp;
   battleStats->medals.markOfMastery = currentStats->medals.markOfMastery - lastStats->medals.markOfMastery;
   battleStats->medals.markOfMasteryI = currentStats->medals.markOfMasteryI - lastStats->medals.markOfMasteryI;
   battleStats->medals.markOfMasteryII = currentStats->medals.markOfMasteryII - lastStats->medals.markOfMasteryII;
