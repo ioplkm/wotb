@@ -7,14 +7,14 @@
 #include <curl/curl.h>
 #include <json-c/json.h>
 
-typedef struct achievements {
+typedef struct {
   uint32_t markOfMastery;
   uint32_t markOfMasteryI;
   uint32_t markOfMasteryII;
   uint32_t markOfMasteryIII;
-} achievements;
+} Achievements;
 
-typedef struct stats {
+typedef struct {
   uint32_t damageDealt;
   uint32_t shots;
   uint32_t hits;
@@ -24,8 +24,8 @@ typedef struct stats {
   uint32_t survivedBattles;
   uint32_t frags;
   uint32_t spots;
-  achievements medals;
-} stats;
+  Achievements achievements;
+} Stats;
 
 const char* accountId = "126219745";
 const char* appId = "74198832ec124e1cfe22490f35a7085f";
@@ -36,17 +36,13 @@ const char* achievementUrl = "https://api.wotblitz.ru/wotb/account/achievements/
 
 time_t lastBattleTime, newTime;
 
-stats initialStats;
-stats lastStats;
-stats battleStats;
-stats sessionStats;
-stats currentStats;
+Stats initialStats, lastStats, battleStats, sessionStats, currentStats;
 
 size_t timeParse(void* buffer, size_t size, size_t nmemb, time_t *pTime);
-size_t dataParse(void* buffer, size_t size, size_t nmemb, stats *pStats);
-size_t achievementParse(void* buffer, size_t size, size_t nmemb, achievements *pAchievements);
+size_t dataParse(void* buffer, size_t size, size_t nmemb, Stats *pStats);
+size_t achievementParse(void* buffer, size_t size, size_t nmemb, Achievements *pAchievements);
 
-void calculateStatsDifference(stats *currentStats, stats *lastStats, stats *battleStats);
+void calculateStatsDifference(Stats *pMinuendStats, Stats *pSubtrahendStats, Stats *pResultStats);
 
 int main() {
   curl_global_init(CURL_GLOBAL_ALL);
@@ -72,9 +68,9 @@ int main() {
   sprintf(url, achievementUrl, appId, accountId);
   curl_easy_setopt(achievementHandle, CURLOPT_URL, url);
   curl_easy_setopt(achievementHandle, CURLOPT_WRITEFUNCTION, achievementParse);
-  curl_easy_setopt(achievementHandle, CURLOPT_WRITEDATA, &initialStats.medals);
+  curl_easy_setopt(achievementHandle, CURLOPT_WRITEDATA, &initialStats.achievements);
   curl_easy_perform(achievementHandle);
-  curl_easy_setopt(achievementHandle, CURLOPT_WRITEDATA, &currentStats.medals);
+  curl_easy_setopt(achievementHandle, CURLOPT_WRITEDATA, &currentStats.achievements);
 
   free(url);
   lastStats = initialStats;
@@ -98,10 +94,10 @@ int main() {
              battleStats.survivedBattles ? "survived" : "died",
              battleStats.frags,
              battleStats.spots,
-             battleStats.medals.markOfMastery ? 'M' :
-             battleStats.medals.markOfMasteryI ? '1' :
-             battleStats.medals.markOfMasteryII ? '2' :
-             battleStats.medals.markOfMasteryIII ? '3' : '-');
+             battleStats.achievements.markOfMastery ? 'M' :
+             battleStats.achievements.markOfMasteryI ? '1' :
+             battleStats.achievements.markOfMasteryII ? '2' :
+             battleStats.achievements.markOfMasteryIII ? '3' : '-');
       printf(" avg |%7.1f | %6.2f%% | %6.2f%% | %7.2f%% | %5.2f | %5.2f | %c",
              (float)sessionStats.damageDealt / sessionStats.battles,
              (float)sessionStats.hits / sessionStats.shots * 100,
@@ -109,10 +105,10 @@ int main() {
              (float)sessionStats.survivedBattles / sessionStats.battles * 100,
              (float)sessionStats.frags / sessionStats.battles,
              (float)sessionStats.spots / sessionStats.battles,
-             sessionStats.medals.markOfMastery ? 'M' :
-             sessionStats.medals.markOfMasteryI ? '1' :
-             sessionStats.medals.markOfMasteryII ? '2' :
-             sessionStats.medals.markOfMasteryIII ? '3' : '-');
+             sessionStats.achievements.markOfMastery ? 'M' :
+             sessionStats.achievements.markOfMasteryI ? '1' :
+             sessionStats.achievements.markOfMasteryII ? '2' :
+             sessionStats.achievements.markOfMasteryIII ? '3' : '-');
       fflush(stdout);
       lastStats = currentStats;
     }
@@ -132,7 +128,7 @@ size_t timeParse(void *buffer, size_t size, size_t nmemb, time_t *pTime) {
   return size * nmemb;
 }
 
-size_t dataParse(void *buffer, size_t size, size_t nmemb, stats *pStats) {
+size_t dataParse(void *buffer, size_t size, size_t nmemb, Stats *pStats) {
   json_object *obj = json_tokener_parse(buffer);
   json_object *data, *me, *statistics, *all;
   json_object_object_get_ex(obj, "data", &data);
@@ -161,7 +157,7 @@ size_t dataParse(void *buffer, size_t size, size_t nmemb, stats *pStats) {
   return size * nmemb;
 }
 
-size_t achievementParse(void *buffer, size_t size, size_t nmemb, achievements *pAchievements) {
+size_t achievementParse(void *buffer, size_t size, size_t nmemb, Achievements *pAchievements) {
   json_object *obj = json_tokener_parse(buffer);
   json_object *data, *me, *achievements;
   json_object_object_get_ex(obj, "data", &data);
@@ -179,18 +175,18 @@ size_t achievementParse(void *buffer, size_t size, size_t nmemb, achievements *p
   return size * nmemb;
 }
 
-void calculateStatsDifference(stats *currentStats, stats *lastStats, stats *battleStats) {
-  battleStats->damageDealt = currentStats->damageDealt - lastStats->damageDealt;
-  battleStats->hits = currentStats->hits - lastStats->hits;
-  battleStats->shots = currentStats->shots - lastStats->shots;
-  battleStats->wins = currentStats->wins - lastStats->wins;
-  battleStats->losses = currentStats->losses - lastStats->losses;
-  battleStats->battles = currentStats->battles - lastStats->battles;
-  battleStats->survivedBattles = currentStats->survivedBattles - lastStats->survivedBattles;
-  battleStats->frags = currentStats->frags - lastStats->frags;
-  battleStats->spots = currentStats->spots - lastStats->spots;
-  battleStats->medals.markOfMastery = currentStats->medals.markOfMastery - lastStats->medals.markOfMastery;
-  battleStats->medals.markOfMasteryI = currentStats->medals.markOfMasteryI - lastStats->medals.markOfMasteryI;
-  battleStats->medals.markOfMasteryII = currentStats->medals.markOfMasteryII - lastStats->medals.markOfMasteryII;
-  battleStats->medals.markOfMasteryIII = currentStats->medals.markOfMasteryIII - lastStats->medals.markOfMasteryIII;
+void calculateStatsDifference(Stats *pMinuendStats, Stats *pSubtrahendStats, Stats *pResultStats) {
+  pResultStats->damageDealt = pMinuendStats->damageDealt - pSubtrahendStats->damageDealt;
+  pResultStats->hits = pMinuendStats->hits - pSubtrahendStats->hits;
+  pResultStats->shots = pMinuendStats->shots - pSubtrahendStats->shots;
+  pResultStats->wins = pMinuendStats->wins - pSubtrahendStats->wins;
+  pResultStats->losses = pMinuendStats->losses - pSubtrahendStats->losses;
+  pResultStats->battles = pMinuendStats->battles - pSubtrahendStats->battles;
+  pResultStats->survivedBattles = pMinuendStats->survivedBattles - pSubtrahendStats->survivedBattles;
+  pResultStats->frags = pMinuendStats->frags - pSubtrahendStats->frags;
+  pResultStats->spots = pMinuendStats->spots - pSubtrahendStats->spots;
+  pResultStats->achievements.markOfMastery = pMinuendStats->achievements.markOfMastery - pSubtrahendStats->achievements.markOfMastery;
+  pResultStats->achievements.markOfMasteryI = pMinuendStats->achievements.markOfMasteryI - pSubtrahendStats->achievements.markOfMasteryI;
+  pResultStats->achievements.markOfMasteryII = pMinuendStats->achievements.markOfMasteryII - pSubtrahendStats->achievements.markOfMasteryII;
+  pResultStats->achievements.markOfMasteryIII = pMinuendStats->achievements.markOfMasteryIII - pSubtrahendStats->achievements.markOfMasteryIII;
 }
