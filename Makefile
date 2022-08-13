@@ -1,9 +1,9 @@
 CC = clang
-CFLAGS = -std=c99 -O3 -Wall -Wextra -Wpedantic
-LDFLAGS = -lcurl -ljson-c
+CFLAGS = -std=c99 -O3 -Wall -Wextra -Wpedantic -s -pipe
+LDLIBS = -lcurl -ljson-c
 PREFIX = /usr/local
 all: main.c
-	$(CC) $(CFLAGS) $(LDFLAGS) main.c -o wotb
+	$(CC) $(CFLAGS) $(LDLIBS) main.c -o wotb
 clean:
 	rm wotb
 install:
