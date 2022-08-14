@@ -7,6 +7,6 @@ all: main.c
 clean:
 	rm wotb
 install:
-	install -m755 wotbxp $(PREFIX)/bin
+	install -m755 wotb $(PREFIX)/bin
 uninstall:
-	rm $(PREFIX)/bin/wotbxp
+	rm $(PREFIX)/bin/wotb
